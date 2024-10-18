@@ -1,29 +1,42 @@
-name: Verademo Scanning Example Github
+name: NodeJS API Veracode Scan
 
 on:
   workflow_dispatch:
   repository_dispatch:
     types: [test]
+    
 
 jobs:
-  checkout-package-scan:
-
+  build-and-scan:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
-    - name: Set up JDK 1.8
-      uses: actions/setup-java@v1
-      with:
-        java-version: 1.8
-  
-    - name: Build with Maven
-      run: mvn -f app/pom.xml clean package 
+      - name: Checkout Code
+        uses: actions/checkout@v3
 
-    - name: Get the Java API wrapper
-      uses: wei/curl@master
-      with:
-        args: -sS -o VeracodeJavaAPI.jar "https://repo1.maven.org/maven2/com/veracode/vosp/api/wrappers/vosp-api-wrappers-java/19.6.5.8/vosp-api-wrappers-java-19.6.5.8.jar"
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'
 
-    - name: Start SAST scan
-      run: java -jar VeracodeJavaAPI.jar -action uploadandscan -VERACODE_API_ID $ -VERACODE_API_KEY $ -appname Github-VeraDemo -createprofile true -version "GitHub Actions job $GITHUB_RUN_NUMBER" -filepath ./app/target/verademo.war
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Run Tests
+        run: npm test
+
+      - name: Archive Code for Veracode
+        run: zip -r node-app.zip .
+
+      - name: Download Veracode Pipeline Scanner
+        run: |
+          curl -sSO https://downloads.veracode.com/securityscan/pipeline-scan-LATEST.zip
+          unzip pipeline-scan-LATEST.zip
+
+      - name: Run Veracode Pipeline Scan
+        env:
+          VERACODE_API_ID: ${{ secrets.VERACODE_API_ID }}
+          VERACODE_API_KEY: ${{ secrets.VERACODE_API_KEY }}
+        run: |
+          java -jar pipeline-scan.jar -vid $VERACODE_API_ID -vkey $VERACODE_API_KEY -f node-app.zip
+        
