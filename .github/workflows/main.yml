@@ -34,7 +34,7 @@ jobs:
         uses: actions/checkout@v4
       - name: Archive Files
         run: |
-          zip -r ${{ env.caminhoPacote }} ./src '*.asp' '*.cjs' '*.css' '*.ehtml' '*.es' '*.es6' '*.handlebars' '*.hbs' '*.hjs' '*.htm' '*.html' '*.js' '*.jsx' '*.json' '*.jsp' '*.map' '*.mjs' '*.mustache' '*.php' '*.ts' '*.tsx' '*.vue' '*.xhtml'
+          zip -r ${{ env.caminhoPacote }}
       - name: Download Veracode Pipeline Scanner
         run: |
           curl -sSO https://downloads.veracode.com/securityscan/pipeline-scan-LATEST.zip
