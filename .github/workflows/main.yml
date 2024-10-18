@@ -4,7 +4,8 @@ on:
   workflow_dispatch:
   repository_dispatch:
     types: [test]
-    
+env:
+  caminhoPacote: pacoteVeracode.zip
 
 jobs:
   build-and-scan:
@@ -12,12 +13,12 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '12.x'
 
       - name: Install Dependencies
         run: npm install
@@ -25,9 +26,15 @@ jobs:
       - name: Run Tests
         run: npm test
 
-      - name: Archive Code for Veracode
-        run: zip -r node-app.zip .
-
+  Archive_And_Scan:
+      needs: build-and-scan
+      runs-on: ubuntu-latest
+      steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Archive Files
+        run: |
+          zip -r ${{ env.caminhoPacote }} ./src '*.asp' '*.cjs' '*.css' '*.ehtml' '*.es' '*.es6' '*.handlebars' '*.hbs' '*.hjs' '*.htm' '*.html' '*.js' '*.jsx' '*.json' '*.jsp' '*.map' '*.mjs' '*.mustache' '*.php' '*.ts' '*.tsx' '*.vue' '*.xhtml'
       - name: Download Veracode Pipeline Scanner
         run: |
           curl -sSO https://downloads.veracode.com/securityscan/pipeline-scan-LATEST.zip
