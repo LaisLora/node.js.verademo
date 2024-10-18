@@ -33,8 +33,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Archive Files
-        run: |
-          zip -r ${{ env.caminhoPacote }}
       - name: Download Veracode Pipeline Scanner
         run: |
           curl -sSO https://downloads.veracode.com/securityscan/pipeline-scan-LATEST.zip
@@ -46,5 +44,5 @@ jobs:
           VERACODE_API_ID: ${{ secrets.VERACODE_API_ID }}
           VERACODE_API_KEY: ${{ secrets.VERACODE_API_KEY }}
         run: |
-          java -jar pipeline-scan.jar -vid $VERACODE_API_ID -vkey $VERACODE_API_KEY -f node-app.zip
+          java -jar pipeline-scan.jar -vid $VERACODE_API_ID -vkey $VERACODE_API_KEY -f ${{ env.caminhoPacote }}
         
