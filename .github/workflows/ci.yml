@@ -53,21 +53,21 @@ jobs:
           unzip pipeline-scan-LATEST.zip
           java -jar pipeline-scan.jar -vid $VERACODE_API_ID -vkey $VERACODE_API_KEY -f ${{ env.caminhoPacote }} -fc LOW
 
-SCA_Scan:
-    needs: build-and-scan
-    runs-on: windows-latest
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Install Veracode SCA Agent
-        shell: pwsh
-        run: |
-          $ProgressPreference = "silentlyContinue"; iex ((New-Object System.Net.WebClient).DownloadString('https://download.sourceclear.com/ci.ps1'))
-
-      - name: Run Veracode SCA Scan
-        shell: pwsh
-        env:
-          SRCCLR_API_TOKEN: ${{ secrets.SRCCLR_TOKEN }}
-        run: |
-          srcclr scan --url https://github.com/${{ github.repository }}
+  SCA_Scan:
+      needs: build-and-scan
+      runs-on: windows-latest
+      steps:
+        - name: Checkout Code
+          uses: actions/checkout@v4
+  
+        - name: Install Veracode SCA Agent
+          shell: pwsh
+          run: |
+            $ProgressPreference = "silentlyContinue"; iex ((New-Object System.Net.WebClient).DownloadString('https://download.sourceclear.com/ci.ps1'))
+  
+        - name: Run Veracode SCA Scan
+          shell: pwsh
+          env:
+            SRCCLR_API_TOKEN: ${{ secrets.SRCCLR_TOKEN }}
+          run: |
+            srcclr scan --url https://github.com/${{ github.repository }}
