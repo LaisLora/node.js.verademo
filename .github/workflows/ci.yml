@@ -4,10 +4,10 @@ on:
   push:
     branches:
       - dev
-      - master
+      
   pull_request:
     branches:
-      - dev 
+      - master
 
 env:
   caminhoPacote: pacoteVeracode.zip
@@ -52,18 +52,21 @@ jobs:
           unzip pipeline-scan-LATEST.zip
           java -jar pipeline-scan.jar -vid $VERACODE_API_ID -vkey $VERACODE_API_KEY -f ${{ env.caminhoPacote }} -fc LOW
 
-  SCA_Scan:
+SCA_Scan:
     needs: build-and-scan
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Veracode SCA Scan
-        env:
-          VERACODE_API_ID: ${{ secrets.VERACODE_API_ID }}
-          VERACODE_API_KEY: ${{ secrets.VERACODE_API_KEY }}
+      - name: Install Veracode SCA Agent
+        shell: pwsh
         run: |
-          curl -sSO https://downloads.veracode.com/agentbasedscan/veracode-wrapper.zip
-          unzip veracode-wrapper.zip
-          java -jar VeracodeJavaAPI.jar -action UploadAndScan -vid $VERACODE_API_ID -vkey $VERACODE_API_KEY -createprofile true -appname "${{ github.repository }}" -version "${{ github.run_id }}" -createsandbox false -filepath ${{ env.caminhoPacote }}
+          $ProgressPreference = "silentlyContinue"; iex ((New-Object System.Net.WebClient).DownloadString('https://download.sourceclear.com/ci.ps1'))
+
+      - name: Run Veracode SCA Scan
+        shell: pwsh
+        env:
+          SRCCLR_API_TOKEN: ${{ secrets.SRCCLR_TOKEN }}
+        run: |
+          srcclr scan --url https://github.com/${{ github.repository }}
