@@ -10,9 +10,6 @@ on:
     branches:
       - master
 
-env:
-  caminhoPacote: pacoteVeracode.zip
-
 jobs:
   build-and-scan:
     runs-on: ubuntu-latest
@@ -80,15 +77,15 @@ jobs:
     needs: build-and-scan
     steps:
       - name: Download Artefato
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
         with:
           name: pacoteVeracode
       - name: Veracode Pipeline Scan
         env:
           VID: ${{ secrets.VERACODE_API_ID }} # Lembrar de criar as credenciais no Secrets
           VKEY: ${{ secrets.VERACODE_API_KEY }}
-          CaminhoArquivo: './veracode.zip'
+          caminhoPacote: './veracode.zip'
         run: |
           curl -sSO https://downloads.veracode.com/securityscan/pipeline-scan-LATEST.zip
           unzip pipeline-scan-LATEST.zip
-          java -jar pipeline-scan.jar -vid $VERACODE_API_ID -vkey $VERACODE_API_KEY -f $CaminhoArquivo
+          java -jar pipeline-scan.jar -vid $VERACODE_API_ID -vkey $VERACODE_API_KEY -f $caminhoPacote
