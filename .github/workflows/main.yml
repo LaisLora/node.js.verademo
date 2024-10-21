@@ -43,5 +43,5 @@ jobs:
         run: |
           curl -sSO https://downloads.veracode.com/securityscan/pipeline-scan-LATEST.zip
           unzip pipeline-scan-LATEST.zip
-          java -jar pipeline-scan.jar -vid $VERACODE_API_ID -vkey $VERACODE_API_KEY -f ${{ env.caminhoPacote }}
+          java -jar pipeline-scan.jar -vid $VERACODE_API_ID -vkey $VERACODE_API_KEY -f ${{ env.caminhoPacote }} -sb
         
