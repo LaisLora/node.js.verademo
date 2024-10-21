@@ -27,11 +27,19 @@ jobs:
 
       - name: Install dependencies
         run: npm install
+        
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
       - name: Empacotamento dos arquivos
         uses: thedoctor0/zip-release@master
         with:
           filename: 'veracode.zip'
+          exclusions: '*.git* /*node_modules/* .editorconfig *.png* *.pdf* *.md* *Dockerfile *.yml'
           path: .
+
       - name: Publicando Artefato
         uses: actions/upload-artifact@v4
         with:
@@ -48,20 +56,24 @@ jobs:
         run: |
           curl -sSL 'https://download.sourceclear.com/ci.sh' | bash -s – scan --update-advisor --pull-request --allow-dirty
 
-  Veracode_PipelineScan:
+  veracode-sast-pipeline_scan:
+    needs: package
     runs-on: ubuntu-latest
-    needs: build-and-scan
+    name: veracode pipeline scan
+
     steps:
-      - name: Download Artefato
+      - name: checkout repo
+        uses: actions/checkout@v4
+      
+      - name: get archive
         uses: actions/download-artifact@v4
         with:
           name: pacoteVeracode
-      - name: Veracode Pipeline Scan
-        env:
-          VID: ${{ secrets.VERACODE_API_ID }} # Lembrar de criar as credenciais no Secrets
-          VKEY: ${{ secrets.VERACODE_API_KEY }}
-          caminhoPacote: './veracode.zip'
-        run: |
-          curl -sSO https://downloads.veracode.com/securityscan/pipeline-scan-LATEST.zip
-          unzip pipeline-scan-LATEST.zip
-          java -jar pipeline-scan.jar -vid $VERACODE_API_ID -vkey $VERACODE_API_KEY -f $caminhoPacote
+
+      - name: veracode pipeline-scan
+        id: pipeline-scan
+        uses: veracode/Veracode-pipeline-scan-action@v1.0.15
+        with:
+          vid: ${{ secrets.VERACODE_API_ID }}
+          vkey: ${{ secrets.VERACODE_API_KEY }}
+          file: "veracode.zip"
