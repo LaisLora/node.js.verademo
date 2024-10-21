@@ -3,7 +3,7 @@ name: NodeJS API Veracode Scan
 on:
   push:
     branches:
-      - develop  
+      - dev  
   pull_request:
     branches:
       - main 
