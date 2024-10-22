@@ -77,9 +77,7 @@ jobs:
           vid: ${{ secrets.VERACODE_API_ID }}
           vkey: ${{ secrets.VERACODE_API_KEY }}
           file: "veracode.zip"
-          request_policy: "VeraDemo Policy"
-          fail_build: false
-      
+               
 
   veracode-sast-policy-scan:
     needs: [ package, veracode-sast-pipeline_scan, Veracode_SCA ]
