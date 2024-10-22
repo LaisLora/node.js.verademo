@@ -95,10 +95,11 @@ jobs:
       - name: veracode sast policy scan
         uses: veracode/veracode-uploadandscan-action@0.2.6
         with:
-          appname: 'verademo-javascript-api'
+          appname: '${{ github.repository }}'
           createprofile: true
           filepath: 'veracode.zip'
           vid: '${{ secrets.VERACODE_API_ID }}'
           vkey: '${{ secrets.VERACODE_API_KEY }}'
           version: "${{ github.run_id }}"
           scantimeout: 12
+          verbose: true
