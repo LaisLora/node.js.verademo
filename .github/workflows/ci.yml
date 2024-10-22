@@ -103,5 +103,4 @@ jobs:
           vkey: '${{ secrets.VERACODE_API_KEY }}'
           version: "${{ github.run_id }}"
           scantimeout: 12
-          deleteincompletescan: true
-
+          
