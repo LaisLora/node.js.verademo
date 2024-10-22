@@ -77,6 +77,13 @@ jobs:
           vid: ${{ secrets.VERACODE_API_ID }}
           vkey: ${{ secrets.VERACODE_API_KEY }}
           file: "veracode.zip"
+          request_policy: "VeraDemo Policy"
+          debug: 1
+          fail_build: false
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Veracode Pipeline-Scan Results
+          path: results.json         
 
   veracode-sast-policy-scan:
     needs: [ package, veracode-sast-pipeline_scan, Veracode_SCA ]
@@ -93,7 +100,7 @@ jobs:
           name: pacoteVeracode
           
       - name: veracode sast policy scan
-        uses: veracode/veracode-uploadandscan-action@0.2.6
+        uses: veracode/veracode-uploadandscan-action@0.3.0
         with:
           appname: '${{ github.repository }}'
           createprofile: true
@@ -101,16 +108,11 @@ jobs:
           vid: '${{ secrets.VERACODE_API_ID }}'
           vkey: '${{ secrets.VERACODE_API_KEY }}'
           version: "${{ github.run_id }}"
-          scantimeout: 12
+          scantimeout: 60
           json_output_file: 'veracode_results.json'
-          
+
       - name: Upload Veracode Scan Results 
         uses: actions/upload-artifact@v4
         with:
           name: veracode-scan-results
           path: veracode_results.json
-
-
-
-
-         
