@@ -94,7 +94,7 @@ jobs:
           name: pacoteVeracode
           
       - name: veracode sast policy scan
-        uses: veracode/veracode-uploadandscan-action@0.3.0
+        uses: veracode/veracode-uploadandscan-action@0.2.6
         with:
           appname: '${{ github.repository }}'
           createprofile: true
