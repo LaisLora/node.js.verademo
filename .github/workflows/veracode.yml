@@ -9,7 +9,7 @@ on:
 
 jobs:
   veracode:
-    uses: organization/github-actions-templates/.github/workflows/veracode-analysis.yml@main
+    uses: LaisLora/github-actions-templates/.github/workflows/veracode-analysis.yml@main
     with:
       project-path: "."  # Caminho para o projeto
     secrets:
