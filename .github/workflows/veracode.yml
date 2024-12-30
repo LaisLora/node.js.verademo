@@ -3,7 +3,7 @@ name: Veracode Analysis
 on:
   push:
     branches:
-      - main
+      - master
       - dev
       - hml
 
