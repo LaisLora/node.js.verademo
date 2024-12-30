@@ -1,14 +1,14 @@
-name: NodeJS API Veracode Scan
+##name: NodeJS API Veracode Scan
 
-on:
-  push:
-    branches:
-      - dev
-      - master
+##on:
+#  push:
+ #   branches:
+  #    - dev
+   #   - master
       
-  pull_request:
-    branches:
-      - master
+  #pull_request:
+  #  branches:
+   #   - master
 
 jobs:
   build-and-scan:
