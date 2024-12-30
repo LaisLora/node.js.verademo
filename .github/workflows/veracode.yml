@@ -1,0 +1,18 @@
+name: Veracode Analysis
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+      - hml
+
+jobs:
+  veracode:
+    uses: organization/github-actions-templates/.github/workflows/veracode-analysis.yml@main
+    with:
+      project-path: "."  # Caminho para o projeto
+    secrets:
+      VERACODE_API_ID: ${{ secrets.VERACODE_API_ID }}
+      VERACODE_API_KEY: ${{ secrets.VERACODE_API_KEY }}
+      SRCCLR_API_TOKEN: ${{ secrets.SRCCLR_API_TOKEN }}
