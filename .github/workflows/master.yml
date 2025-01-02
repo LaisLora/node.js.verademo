@@ -9,7 +9,5 @@ on:
 jobs:
   veracode:
     uses: LaisLora/github-actions-templates/.github/workflows/veracode-analysis.yml@main
-    with:
-      config-path: .github/workflows/veracode-analysis.yml
-    secrets:
-      token: ${{ secrets.ACTIONS_DEPLOY_KEY }}
+    secrets: inherit
+      
