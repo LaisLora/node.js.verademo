@@ -50,17 +50,15 @@ jobs:
     steps:
       - name: Instalar e Executar Veracode CLI
         run: |
-          # Definir a pasta com o Build ID
-          BUILD_ID=$GITHUB_RUN_ID
       
           # Baixar e instalar o CLI do Veracode
           curl -fsS https://tools.veracode.com/veracode-cli/install | sh
       
           # Executar o CLI do Veracode para criar pacotes ZIP
-          ./veracode package --source . --type directory --output $GITHUB_WORKSPACE/artifacts/$BUILD_ID --trust
+          ./veracode package --source . --type directory --output $GITHUB_WORKSPACE/artifacts/$GITHUB.RUN_ID --trust
       
           # Encontra e descompacta todos os arquivos ZIP gerados, colocando todos no mesmo diretório
-          find $GITHUB_WORKSPACE/artifacts/$BUILD_ID -name "*.zip" | while read filename; do
+          find $GITHUB_WORKSPACE/artifacts/$GITHUB_RUN_ID -name '*.zip' | while read filename; do
             dir=$(dirname "$filename")
             echo "📦 Descompactando $filename em $dir"
             unzip -o "$filename" -d "$dir"
@@ -68,16 +66,16 @@ jobs:
       
           # Remove os arquivos ZIP após a extração
           echo "🗑️ Removendo arquivos ZIP originais"
-          rm -rf $GITHUB_WORKSPACE/artifacts/$BUILD_ID/*.zip
+          rm -rf $GITHUB_WORKSPACE/artifacts/$GITHUB_RUN_ID/*.zip
       
           # Cria um único arquivo ZIP com todos os artefatos
           echo "📦 Criando pacote único analysisPack.zip"
-          zip analysisPack.zip -r $GITHUB_WORKSPACE/artifacts/$BUILD_ID/analysisPack.zip
-          mv analysisPack.zip $GITHUB_WORKSPACE/artifacts/$BUILD_ID/
+          zip analysisPack.zip -r $GITHUB_WORKSPACE/artifacts/$GITHUB_RUN_ID/analysisPack.zip
+          mv analysisPack.zip $GITHUB_WORKSPACE/artifacts/$GITHUB_RUN_ID/
       
           # Listar o conteúdo final do diretório
           echo "📂 Conteúdo final em $TARGET_DIR:"
-          ls -l $GITHUB_WORKSPACE/artifacts/$BUILD_ID/
+          ls -l $GITHUB_WORKSPACE/artifacts/$GITHUB_RUN_ID
 
       - name: Publicar Artefato
         uses: actions/upload-artifact@v3
