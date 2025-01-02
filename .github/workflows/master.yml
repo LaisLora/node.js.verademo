@@ -2,13 +2,14 @@ name: Veracode
 
 on:
   push:
-    branches:
-      - master
+    branches: [ master ]
+  workflow_dispatch:
 
 jobs:
   veracode:
     uses: LaisLora/github-actions-templates/.github/workflows/veracode-analysis.yml@master
-    with:
-      project-path: "." # Diretório do projeto
-      project-name: "${{ github.repository }}" # Nome do repositório
     secrets: inherit
+    with:
+      build-id: ${{ github.run_id }}
+      project: "${{ github.repository }}" # Nome do repositório
+ 
