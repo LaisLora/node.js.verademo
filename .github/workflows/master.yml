@@ -7,7 +7,7 @@ on:
 
 jobs:
   veracode:
-    uses: .github/workflows/veracode-analysis.yml@main
+    uses: LaisLora/github-actions-templates/.github/workflows/veracode-analysis.yml@main
     secrets: inherit
     with:
       build-id: ${{ github.run_id }}
