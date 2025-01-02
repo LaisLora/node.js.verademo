@@ -11,5 +11,5 @@ jobs:
     secrets: inherit
     with:
       build-id: ${{ github.run_id }}
-      project: "${{ github.repository }}" # Nome do repositório
+      project: "${{ github.repository }}" # Nome do repositório.
  
