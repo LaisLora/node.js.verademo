@@ -48,63 +48,43 @@ jobs:
     needs: veracode-analysis
     runs-on: ubuntu-latest
     steps:
-      - name: Baixar e Instalar CLI do Veracode
+      - name: Instalar e Executar Veracode CLI
         run: |
-          # Definir pasta única com base no build ID
+          # Definir a pasta com o Build ID
           BUILD_ID=$GITHUB_RUN_ID
-          TARGET_DIR=$GITHUB_WORKSPACE/artifacts/$BUILD_ID
-      
-          # Exibir o diretório inicial para depuração
-          echo "📂 Diretório inicial:"
-          ls -la $GITHUB_WORKSPACE
       
           # Baixar e instalar o CLI do Veracode
           curl -fsS https://tools.veracode.com/veracode-cli/install | sh
       
-          # Criar a pasta com o build ID para consolidar os arquivos
-          mkdir -p $TARGET_DIR
-          echo "📂 Diretório após criar $TARGET_DIR:"
-          ls -la $GITHUB_WORKSPACE/artifacts
-      
           # Executar o CLI do Veracode para criar pacotes ZIP
-          ./veracode package --source . --type directory --output $TARGET_DIR --trust
+          ./veracode package --source . --type directory --output $GITHUB_WORKSPACE/artifacts/$BUILD_ID --trust
       
-          # Exibir os arquivos na pasta de destino após o CLI
-          echo "📂 Arquivos em $TARGET_DIR após executar o CLI:"
-          ls -la $TARGET_DIR
-      
-          # Descompactar todos os arquivos ZIP gerados e mover para a pasta com o build ID
-          find $TARGET_DIR -name "*.zip" | while read filename; do
-            echo "📦 Descompactando $filename"
-            unzip -o "$filename" -d $TARGET_DIR
+          # Encontra e descompacta todos os arquivos ZIP gerados, colocando todos no mesmo diretório
+          find $GITHUB_WORKSPACE/artifacts/$BUILD_ID -name "*.zip" | while read filename; do
+            dir=$(dirname "$filename")
+            echo "📦 Descompactando $filename em $dir"
+            unzip -o "$filename" -d "$dir"
           done
       
-          # Exibir os arquivos na pasta de destino após descompactação
-          echo "📂 Arquivos em $TARGET_DIR após descompactar os ZIPs:"
-          ls -la $TARGET_DIR
+          # Remove os arquivos ZIP após a extração
+          echo "🗑️ Removendo arquivos ZIP originais"
+          rm -rf $GITHUB_WORKSPACE/artifacts/$BUILD_ID/*.zip
       
-          # Remover arquivos ZIP originais para evitar duplicação
-          echo "🗑️ Removendo arquivos ZIP originais:"
-          rm -rf $TARGET_DIR/*.zip
+          # Cria um único arquivo ZIP com todos os artefatos
+          echo "📦 Criando pacote único analysisPack.zip"
+          zip analysisPack.zip -r $GITHUB_WORKSPACE/artifacts/$BUILD_ID/analysisPack.zip
+          mv analysisPack.zip $GITHUB_WORKSPACE/artifacts/$BUILD_ID/
       
-          # Exibir a estrutura final antes de empacotar
-          echo "📂 Estrutura final em $TARGET_DIR antes de empacotar:"
-          ls -la $TARGET_DIR
-      
-          # Criar o pacote final analysisPack.zip com todos os arquivos na pasta com o build ID
-          zip -r $GITHUB_WORKSPACE/artifacts/analysisPack-$BUILD_ID.zip $TARGET_DIR
-      
-          # Exibir os arquivos no diretório artifacts após criar o pacote final
-          echo "📂 Arquivos no diretório artifacts:"
-          ls -la $GITHUB_WORKSPACE/artifacts
-
-
+          # Listar o conteúdo final do diretório
+          echo "📂 Conteúdo final em $TARGET_DIR:"
+          ls -l $GITHUB_WORKSPACE/artifacts/$BUILD_ID/
 
       - name: Publicar Artefato
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: analysisPack
-          path: ${{ github.workspace }}/artifacts/${{ inputs.build.id }}/analysisPack.zip
+          path: $GITHUB_WORKSPACE/artifacts/$GITHUB_RUN_ID/analysisPack.zip
+
 
   veracode-sast-pipeline-scan:
     needs: autopack
