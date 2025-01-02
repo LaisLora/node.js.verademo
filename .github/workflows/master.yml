@@ -29,16 +29,25 @@ jobs:
             exit 1
           fi
 
-      - name: Instalar Pré-requisitos
+      - name: Instalar Linguagem e Dependências
         run: |
           if [ "$language" == "java" ]; then
-            sudo apt-get update && sudo apt-get install -y openjdk-21-jdk maven
+            echo "Instalando Java e Maven..."
+            sudo apt-get update && sudo apt-get install -y openjdk-11-jdk maven
           elif [ "$language" == "node" ]; then
-            sudo apt-get update && sudo apt-get install -y nodejs npm
+            echo "Instalando Node.js e npm..."
+            curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash -
+            sudo apt-get install -y nodejs
+            echo "Instalando dependências do Node.js..."
+            npm install
           elif [ "$language" == "python" ]; then
+            echo "Instalando Python e Pip..."
             sudo apt-get update && sudo apt-get install -y python3 python3-pip
+            echo "Instalando dependências do Python..."
+            pip3 install -r requirements.txt
           elif [ "$language" == "dotnet" ]; then
-            sudo apt-get update && sudo apt-get install -y dotnet-sdk-8.x
+            echo "Instalando .NET SDK..."
+            sudo apt-get update && sudo apt-get install -y dotnet-sdk-6.0
           else
             echo "Linguagem desconhecida. Abortando."
             exit 1
@@ -50,23 +59,35 @@ jobs:
     steps:
       - name: Baixar e Instalar CLI do Veracode
         run: |
-          curl -fsS https://tools.veracode.com/veracode-cli/install | sh
-          mkdir -p ${{ github.workspace }}/artifacts/${{ inputs.build-id }}
+          # Definir variáveis
+          BUILD_ID=$GITHUB_RUN_ID
+          TARGET_DIR=$GITHUB_WORKSPACE/artifacts/$BUILD_ID
 
-          # Executar o CLI do Veracode com depuração habilitada
-          ./veracode package --source . --type directory --output ${{ github.workspace }}/artifacts/${{ inputs.build-id }} --trust --debug || exit 1
-          find $${{ github.workspace }}/artifacts/${{ inputs.build-id }} -name "*.zip" | while read filename; do unzip -o -d "'dirname "$filename'" done
-          rm rf ${{ github.workspace }}/artifacts/${{ inputs.build-id }}/*.zip
-          zip analysisPack.zip -r ${{ github.workspace }}/artifacts/${{ inputs.build-id }}
-          mv analysisPack.zip ${{ github.workspace }}/artifacts/${{ inputs.build-id }}/*.zip ${{ github.workspace }}/artifacts/${{ inputs.build-id }}/analysisPack.zip
-          ls -l ${{ github.workspace }}/artifacts/${{ inputs.build-id }}
+          # Criar diretório de saída
+          mkdir -p $TARGET_DIR
+
+          # Baixar e instalar o CLI do Veracode
+          curl -fsS https://tools.veracode.com/veracode-cli/install | sh
+
+          # Executar o comando de package do Veracode
+          ./veracode package --source . --type directory --output $TARGET_DIR --trust --debug || exit 1
+
+          # Listar os arquivos no diretório de saída
+          echo "📂 Arquivos no diretório $TARGET_DIR:"
+          ls -la $TARGET_DIR
+
+          # Renomear ou consolidar o pacote, se necessário
+          mv $TARGET_DIR/*.zip $TARGET_DIR/analysisPack.zip
+
+          # Exibir o pacote final
+          echo "📂 Arquivo final gerado:"
+          ls -la $TARGET_DIR
 
       - name: Publicar Artefato
         uses: actions/upload-artifact@v3
         with:
           name: analysisPack
-          path: ${{ github.workspace }}/artifacts/${{ inputs.build-id }}/analysisPack.zip
-
+          path: $TARGET_DIR/analysisPack.zip
   veracode-sast-pipeline-scan:
     needs: autopack
     runs-on: ubuntu-22.04
