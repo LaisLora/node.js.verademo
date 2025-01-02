@@ -1,14 +1,14 @@
-name: Veracode Analysis
+name: Veracode Workflow
 
 on:
   push:
     branches:
       - master
+
 jobs:
-  build:
+  veracode:
     uses: LaisLora/github-actions-templates/.github/workflows/veracode-analysis.yml@main
     with:
-      build-id: ${{ github.run_id }}
-      environment: master  # Ajustar conforme o ambiente
-      namespace: master  # Ajustar conforme o app
-      project: ${{ github.repository }}  # Nome do repositório
+      project-path: "."  # Diretório do projeto
+      project-name: "${{ github.repository }}"  # Nome do repositório
+    secrets: inherit
