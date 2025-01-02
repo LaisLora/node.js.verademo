@@ -12,7 +12,7 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-        
+
       - name: Detectar Linguagem do Projeto
         id: detect_language
         run: |
@@ -32,13 +32,13 @@ jobs:
       - name: Instalar Pré-requisitos
         run: |
           if [ "$language" == "java" ]; then
-            sudo apt-get update && sudo apt-get install -y openjdk-11-jdk maven
+            sudo apt-get update && sudo apt-get install -y openjdk-21-jdk maven
           elif [ "$language" == "node" ]; then
             sudo apt-get update && sudo apt-get install -y nodejs npm
           elif [ "$language" == "python" ]; then
             sudo apt-get update && sudo apt-get install -y python3 python3-pip
           elif [ "$language" == "dotnet" ]; then
-            sudo apt-get update && sudo apt-get install -y dotnet-sdk-6.0
+            sudo apt-get update && sudo apt-get install -y dotnet-sdk-8.x
           else
             echo "Linguagem desconhecida. Abortando."
             exit 1
@@ -53,25 +53,28 @@ jobs:
           # Definir a pasta com o Build ID
           BUILD_ID=$GITHUB_RUN_ID
           TARGET_DIR=$GITHUB_WORKSPACE/artifacts/$BUILD_ID
-          
+          mkdir -p $TARGET_DIR
+
           # Baixar e instalar o CLI do Veracode
           curl -fsS https://tools.veracode.com/veracode-cli/install | sh
-      
-          # Exibir os arquivos no diretório atual antes de executar o CLI
-          echo "📂 Arquivos no diretório de origem (antes do Veracode CLI):"
-          ls -la .
-      
+
           # Executar o CLI do Veracode com depuração habilitada
           ./veracode package --source . --type directory --output $TARGET_DIR --trust --debug || exit 1
-          mv $TARGET_DIR/*.zip $TARGET_DIR/analysisPack.zip
-          ls -l $TARGET_DIR
-          
+
+          # Compactar todos os artefatos em um único arquivo ZIP
+          zip -r $TARGET_DIR/analysisPack.zip $TARGET_DIR/* || exit 1
+
+          # Validar a existência do ZIP
+          if [ ! -f "$TARGET_DIR/analysisPack.zip" ]; then
+            echo "⚠️ Arquivo analysisPack.zip não encontrado. Encerrando com falha."
+            exit 1
+          fi
+
       - name: Publicar Artefato
         uses: actions/upload-artifact@v4
         with:
           name: analysisPack
           path: $TARGET_DIR/analysisPack.zip
-      
 
   veracode-sast-pipeline-scan:
     needs: autopack
