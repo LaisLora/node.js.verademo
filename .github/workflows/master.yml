@@ -1,4 +1,4 @@
-name: Veracode
+name: Analise de linguagem e autopack
 
 on:
   push:
@@ -7,7 +7,104 @@ on:
   workflow_dispatch:
 
 jobs:
-  veracode:
-    uses: LaisLora/github-actions-templates/.github/workflows/veracode-analysis.yml@main
-    secrets: inherit
-      
+  veracode-analysis:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        
+      - name: Detectar Linguagem do Projeto
+        id: detect_language
+        run: |
+          if [ -f "pom.xml" ]; then
+            echo "language=java" >> $GITHUB_ENV
+          elif [ -f "package.json" ]; then
+            echo "language=node" >> $GITHUB_ENV
+          elif [ -f "requirements.txt" ]; then
+            echo "language=python" >> $GITHUB_ENV
+          elif ls *.csproj &>/dev/null; then
+            echo "language=dotnet" >> $GITHUB_ENV
+          else
+            echo "Linguagem não detectada ou suportada. Abortando."
+            exit 1
+          fi
+
+      - name: Instalar Pré-requisitos
+        run: |
+          if [ "$language" == "java" ]; then
+            sudo apt-get update && sudo apt-get install -y openjdk-11-jdk maven
+          elif [ "$language" == "node" ]; then
+            sudo apt-get update && sudo apt-get install -y nodejs npm
+          elif [ "$language" == "python" ]; then
+            sudo apt-get update && sudo apt-get install -y python3 python3-pip
+          elif [ "$language" == "dotnet" ]; then
+            sudo apt-get update && sudo apt-get install -y dotnet-sdk-6.0
+          else
+            echo "Linguagem desconhecida. Abortando."
+            exit 1
+          fi
+
+  autopack:
+    needs: veracode-analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar e Instalar CLI do Veracode
+        run: |
+          curl -fsS https://tools.veracode.com/veracode-cli/install | sh
+          mkdir -p $GITHUB_WORKSPACE/artifacts
+          ./veracode package --source . --type directory --output $GITHUB_WORKSPACE/artifacts --trust
+          find $GITHUB_WORKSPACE/artifacts -name "*.zip" | while read filename; do
+            dir=$(dirname "$filename")
+            unzip -o "$filename" -d "$dir"
+          done
+          rm -rf $GITHUB_WORKSPACE/artifacts/*.zip
+          zip -r analysisPack.zip $GITHUB_WORKSPACE/artifacts
+          mv analysisPack.zip $GITHUB_WORKSPACE/artifacts/
+        env:
+          VERACODE_API_ID: ${{ secrets.VERACODE_API_ID }}
+          VERACODE_API_KEY: ${{ secrets.VERACODE_API_KEY }}
+
+      - name: Publicar Artefato
+        uses: actions/upload-artifact@v3
+        with:
+          name: analysisPack
+          path: $GITHUB_WORKSPACE/artifacts/analysisPack.zip
+
+  veracode-sast-pipeline-scan:
+    needs: autopack
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar Artefato
+        uses: actions/download-artifact@v3
+        with:
+          name: analysisPack
+
+      - name: Veracode Pipeline Scan
+        uses: veracode/Veracode-pipeline-scan-action@v1.0.15
+        with:
+          vid: ${{ secrets.VERACODE_API_ID }}
+          vkey: ${{ secrets.VERACODE_API_KEY }}
+          file: "analysisPack.zip"
+
+  veracode-sast-policy-scan:
+    needs: [autopack, veracode-sast-pipeline-scan]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out main branch
+        uses: actions/checkout@v4
+
+      - name: Baixar Artefato
+        uses: actions/download-artifact@v3
+        with:
+          name: analysisPack
+
+      - name: Veracode SAST Policy Scan
+        uses: veracode/veracode-uploadandscan-action@0.2.6
+        with:
+          appname: ${{ github.repository }}
+          createprofile: true
+          filepath: 'analysisPack.zip'
+          vid: ${{ secrets.VERACODE_API_ID }}
+          vkey: ${{ secrets.VERACODE_API_KEY }}
+          version: "${{ github.run_id }}"
+          scantimeout: 12
