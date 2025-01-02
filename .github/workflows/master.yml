@@ -53,16 +53,8 @@ jobs:
           curl -fsS https://tools.veracode.com/veracode-cli/install | sh
           mkdir -p ${{ github.workspace }}/artifacts/${{ inputs.build.id }}
           ./veracode package --source . --output ${{ github.workspace }}/artifacts/${{ inputs.build.id }} --trust
-          find ${{ github.workspace }}/artifacts/${{ inputs.build.id }} -name "*.zip" | while read filename; do
-            dir=$(dirname "$filename")
-            unzip -o "$filename" -d "$dir"
-          done
-          rm -rf ${{ github.workspace }}/artifacts/${{ inputs.build.id }}*.zip
-          zip -r analysisPack.zip ${{ github.workspace }}/artifacts/${{ inputs.build.id }}
-          mv analysisPack.zip ${{ github.workspace }}/artifacts/${{ inputs.build.id }}
-        env:
-          VERACODE_API_ID: ${{ secrets.VERACODE_API_ID }}
-          VERACODE_API_KEY: ${{ secrets.VERACODE_API_KEY }}
+          mv ${{ github.workspace }}/artifacts/${{ inputs.build.id }}/*.zip ${{ github.workspace }}/artifacts/${{ inputs.build.id }}/analysisPack.zip  
+
 
       - name: Publicar Artefato
         uses: actions/upload-artifact@v3
