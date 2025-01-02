@@ -50,14 +50,33 @@ jobs:
     steps:
       - name: Baixar e Instalar CLI do Veracode
         run: |
+          # Definir pasta única com base no build ID
+          BUILD_ID=$GITHUB_RUN_ID
+          TARGET_DIR=$GITHUB_WORKSPACE/artifacts/$BUILD_ID
+      
+          # Baixar e instalar o CLI do Veracode
           curl -fsS https://tools.veracode.com/veracode-cli/install | sh
-          mkdir -p ${{ github.workspace }}/artifacts/${{ inputs.build.id }}
-          ./veracode package --source . --output ${{ github.workspace }}/artifacts/${{ inputs.build.id }} --trust
-          mv ${{ github.workspace }}/artifacts/${{ inputs.build.id }}/*.zip ${{ github.workspace }}/artifacts/${{ inputs.build.id }}/analysisPack.zip  
+      
+          # Criar a pasta com o build ID para consolidar os arquivos
+          mkdir -p $TARGET_DIR
+      
+          # Executar o CLI do Veracode para criar pacotes ZIP
+          ./veracode package --source . --type directory --output $TARGET_DIR --trust
+      
+          # Descompactar todos os arquivos ZIP gerados e mover para a pasta com o build ID
+          find $TARGET_DIR -name "*.zip" | while read filename; do
+            unzip -o "$filename" -d $TARGET_DIR
+          done
+      
+          # Remover arquivos ZIP originais para evitar duplicação
+          rm -rf $TARGET_DIR/*.zip
+      
+          # Criar o pacote final analysisPack.zip com todos os arquivos na pasta com o build ID
+          zip -r $GITHUB_WORKSPACE/artifacts/analysisPack-$BUILD_ID.zip $TARGET_DIR 
 
 
       - name: Publicar Artefato
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: analysisPack
           path: ${{ github.workspace }}/artifacts/${{ inputs.build.id }}/analysisPack.zip
@@ -67,7 +86,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Baixar Artefato
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: analysisPack
 
