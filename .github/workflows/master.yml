@@ -51,7 +51,6 @@ jobs:
       - name: Baixar e Instalar CLI do Veracode
         run: |
           curl -fsS https://tools.veracode.com/veracode-cli/install | sh
-          mkdir -p $GITHUB_WORKSPACE/artifacts
           ./veracode package --source . --type directory --output $GITHUB_WORKSPACE/artifacts --trust
           find $GITHUB_WORKSPACE/artifacts -name "*.zip" | while read filename; do
             dir=$(dirname "$filename")
