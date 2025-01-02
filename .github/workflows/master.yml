@@ -50,31 +50,22 @@ jobs:
     steps:
       - name: Baixar e Instalar CLI do Veracode
         run: |
-          # Definir a pasta com o Build ID
-          BUILD_ID=$GITHUB_RUN_ID
-          TARGET_DIR=$GITHUB_WORKSPACE/artifacts/$BUILD_ID
-          mkdir -p $TARGET_DIR
-
-          # Baixar e instalar o CLI do Veracode
           curl -fsS https://tools.veracode.com/veracode-cli/install | sh
+          mkdir -p ${{ github.workspace }}/artifacts/${{ inputs.build-id }}
 
           # Executar o CLI do Veracode com depuração habilitada
-          ./veracode package --source . --type directory --output $TARGET_DIR --trust --debug || exit 1
-
-          # Compactar todos os artefatos em um único arquivo ZIP
-          zip -r $TARGET_DIR/analysisPack.zip $TARGET_DIR/* || exit 1
-
-          # Validar a existência do ZIP
-          if [ ! -f "$TARGET_DIR/analysisPack.zip" ]; then
-            echo "⚠️ Arquivo analysisPack.zip não encontrado. Encerrando com falha."
-            exit 1
-          fi
+          ./veracode package --source . --type directory --output ${{ github.workspace }}/artifacts/${{ inputs.build-id }} --trust --debug || exit 1
+          find $${{ github.workspace }}/artifacts/${{ inputs.build-id }} -name "*.zip" | while read filename; do unzip -o -d "'dirname "$filename'" done
+          rm rf ${{ github.workspace }}/artifacts/${{ inputs.build-id }}/*.zip
+          zip analysisPack.zip -r ${{ github.workspace }}/artifacts/${{ inputs.build-id }}
+          mv analysisPack.zip ${{ github.workspace }}/artifacts/${{ inputs.build-id }}/*.zip ${{ github.workspace }}/artifacts/${{ inputs.build-id }}/analysisPack.zip
+          ls -l ${{ github.workspace }}/artifacts/${{ inputs.build-id }}
 
       - name: Publicar Artefato
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: analysisPack
-          path: $TARGET_DIR/analysisPack.zip
+          path: ${{ github.workspace }}/artifacts/${{ inputs.build-id }}/analysisPack.zip
 
   veracode-sast-pipeline-scan:
     needs: autopack
