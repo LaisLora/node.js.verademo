@@ -53,10 +53,7 @@ jobs:
           # Definir a pasta com o Build ID
           BUILD_ID=$GITHUB_RUN_ID
           TARGET_DIR=$GITHUB_WORKSPACE/artifacts/$BUILD_ID
-      
-          # Criar a pasta TARGET_DIR para consolidar os arquivos
-          mkdir -p $TARGET_DIR
-      
+          
           # Baixar e instalar o CLI do Veracode
           curl -fsS https://tools.veracode.com/veracode-cli/install | sh
       
@@ -66,31 +63,15 @@ jobs:
       
           # Executar o CLI do Veracode com depuração habilitada
           ./veracode package --source . --type directory --output $TARGET_DIR --trust --debug || exit 1
+          mv $TARGET_DIR/*.zip $TARGET_DIR/analysisPack.zip
+          ls -l $TARGET_DIR
+          
+      - name: Publicar Artefato
+        uses: actions/upload-artifact@v4
+        with:
+          name: analysisPack
+          path: $TARGET_DIR/analysisPack.zip
       
-          # Exibir os arquivos gerados pelo CLI
-          echo "📂 Arquivos gerados no diretório $TARGET_DIR:"
-          ls -la $TARGET_DIR
-      
-          # Validar se existem arquivos no TARGET_DIR
-          if [ "$(ls -A $TARGET_DIR)" ]; then
-            echo "📦 Arquivos encontrados no diretório $TARGET_DIR, prosseguindo com a descompactação."
-      
-            # Descompactar todos os arquivos ZIP gerados diretamente para TARGET_DIR
-            find $TARGET_DIR -name "*.zip" | while read filename; do
-              echo "📦 Descompactando $filename para $TARGET_DIR"
-              unzip -o "$filename" -d $TARGET_DIR
-            done
-      
-            # Compactar todos os arquivos no TARGET_DIR em um único arquivo ZIP
-            zip -r $TARGET_DIR/analysisPack.zip $TARGET_DIR/*
-      
-            # Exibir a estrutura final no diretório do build ID
-            echo "📂 Diretório final em $TARGET_DIR:"
-            ls -la $TARGET_DIR
-          else
-            echo "⚠️ Nenhum arquivo encontrado no diretório $TARGET_DIR. Encerrando com falha."
-            exit 1
-          fi
 
   veracode-sast-pipeline-scan:
     needs: autopack
