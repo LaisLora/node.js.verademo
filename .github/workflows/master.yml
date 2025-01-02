@@ -8,7 +8,7 @@ on:
 
 jobs:
   veracode-analysis:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -46,7 +46,7 @@ jobs:
 
   autopack:
     needs: veracode-analysis
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: Baixar e Instalar CLI do Veracode
         run: |
@@ -69,7 +69,7 @@ jobs:
 
   veracode-sast-pipeline-scan:
     needs: autopack
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: Baixar Artefato
         uses: actions/download-artifact@v4
@@ -85,7 +85,7 @@ jobs:
 
   veracode-sast-policy-scan:
     needs: [autopack, veracode-sast-pipeline-scan]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: Check out main branch
         uses: actions/checkout@v4
