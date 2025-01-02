@@ -11,4 +11,4 @@ jobs:
       build-id: ${{ github.run_id }}
       environment: master  # Ajustar conforme o ambiente
       namespace: master  # Ajustar conforme o app
-      project: ${{ github.repository }}  # Nome do projeto
+      project: ${{ github.repository }}  # Nome do repositório
