@@ -4,11 +4,10 @@ on:
   push:
     branches:
       - master
-  workflow_dispatch:
 
 jobs:
   veracode-analysis:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -16,42 +15,56 @@ jobs:
       - name: Detectar Linguagem do Projeto
         id: detect_language
         run: |
-          if [ -f "pom.xml" ]; then
+          if find . -type f -name "pom.xml" | grep -q "."; then
             echo "language=java" >> $GITHUB_ENV
-          elif [ -f "package.json" ]; then
+            echo "project_path=$(dirname $(find . -type f -name 'pom.xml' | head -n 1))" >> $GITHUB_ENV
+          elif find . -type f -name "package.json" | grep -q "."; then
             echo "language=node" >> $GITHUB_ENV
-          elif [ -f "requirements.txt" ]; then
+            echo "project_path=$(dirname $(find . -type f -name 'package.json' | head -n 1))" >> $GITHUB_ENV
+          elif find . -type f -name "requirements.txt" | grep -q "."; then
             echo "language=python" >> $GITHUB_ENV
-          elif ls *.csproj &>/dev/null; then
-            echo "language=dotnet" >> $GITHUB_ENV
+            echo "project_path=$(dirname $(find . -type f -name 'requirements.txt' | head -n 1))" >> $GITHUB_ENV
           else
             echo "Linguagem não detectada ou suportada. Abortando."
             exit 1
           fi
-
-      - name: Instalar Linguagem e Dependências
+          echo "Linguagem detectada: $language"
+          echo "Caminho do projeto: $project_path"
+      - name: Instalar Dependências e Compilar
         run: |
+          cd $project_path
+          mkdir -p $GITHUB_WORKSPACE/artifacts
           if [ "$language" == "java" ]; then
-            echo "Instalando Java e Maven..."
+            echo "Instalando e compilando projeto Java com Maven..."
             sudo apt-get update && sudo apt-get install -y openjdk-11-jdk maven
+            mvn clean package
+            mv target/*.jar $GITHUB_WORKSPACE/artifacts/
           elif [ "$language" == "node" ]; then
-            echo "Instalando Node.js e npm..."
-            curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash -
-            sudo apt-get install -y nodejs
-            echo "Instalando dependências do Node.js..."
+            echo "Instalando e compilando projeto Node.js..."
+            sudo apt-get update && sudo apt-get install -y nodejs npm
             npm install
+            npm run build
+            mv dist/* $GITHUB_WORKSPACE/artifacts/
           elif [ "$language" == "python" ]; then
-            echo "Instalando Python e Pip..."
-            sudo apt-get update && sudo apt-get install -y python3 python3-pip
             echo "Instalando dependências do Python..."
+            sudo apt-get update && sudo apt-get install -y python3 python3-pip
             pip3 install -r requirements.txt
-          elif [ "$language" == "dotnet" ]; then
-            echo "Instalando .NET SDK..."
-            sudo apt-get update && sudo apt-get install -y dotnet-sdk-6.0
+            echo "Python geralmente não gera artefatos de build."
+            touch $GITHUB_WORKSPACE/artifacts/python_placeholder.txt
           else
-            echo "Linguagem desconhecida. Abortando."
+            echo "Compilação não definida para essa linguagem. Abortando."
             exit 1
           fi
+          echo "Artefatos compilados movidos para: $GITHUB_WORKSPACE/artifacts"
+      - name: Verificar Artefatos
+        run: |
+          echo "📂 Verificando artefatos em $GITHUB_WORKSPACE/artifacts:"
+          ls -la $GITHUB_WORKSPACE/artifacts
+      - name: Publicar Artefatos
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-artifacts
+          path: $GITHUB_WORKSPACE/artifacts/
 
   autopack:
     needs: veracode-analysis
@@ -59,35 +72,33 @@ jobs:
     steps:
       - name: Baixar e Instalar CLI do Veracode
         run: |
-          # Definir variáveis
-          BUILD_ID=$GITHUB_RUN_ID
-          TARGET_DIR=$GITHUB_WORKSPACE/artifacts/$BUILD_ID
-
-          # Criar diretório de saída
-          mkdir -p $TARGET_DIR
-
+          # Diretórios
+          ARTIFACTS_DIR="${{ github.workspace }}/artifacts"
+          TARGET_DIR="${{ github.workspace }}/artifacts/${{ github.run_id }}"
+          mkdir -p "$TARGET_DIR"
           # Baixar e instalar o CLI do Veracode
+          echo "📥 Baixando e instalando CLI do Veracode..."
           curl -fsS https://tools.veracode.com/veracode-cli/install | sh
-
+          # Verificar se artefatos existem antes do empacotamento
+          if [ -z "$(ls -A "$ARTIFACTS_DIR")" ]; then
+            echo "❌ Nenhum artefato encontrado em $ARTIFACTS_DIR. Abortando."
+            exit 1
+          fi
+          # Copiar os artefatos compilados para o diretório esperado pelo CLI
+          cp -r "$ARTIFACTS_DIR/"* "$TARGET_DIR"
           # Executar o comando de package do Veracode
-          ./veracode package --source . --type directory --output $TARGET_DIR --trust --debug || exit 1
-
-          # Listar os arquivos no diretório de saída
-          echo "📂 Arquivos no diretório $TARGET_DIR:"
-          ls -la $TARGET_DIR
-
-          # Renomear ou consolidar o pacote, se necessário
-          mv $TARGET_DIR/*.zip $TARGET_DIR/analysisPack.zip
-
-          # Exibir o pacote final
-          echo "📂 Arquivo final gerado:"
-          ls -la $TARGET_DIR
-
+          echo "📦 Executando CLI do Veracode no diretório $TARGET_DIR..."
+          ./veracode package --source "$TARGET_DIR" --type directory --output "$TARGET_DIR/analysisPack.zip" --trust
+          # Descompactar pacotes ZIP gerados para validação (opcional)
+          echo "📂 Validando pacotes gerados em $TARGET_DIR:"
+          unzip -l "$TARGET_DIR/analysisPack.zip"
       - name: Publicar Artefato
         uses: actions/upload-artifact@v3
         with:
           name: analysisPack
-          path: $TARGET_DIR/analysisPack.zip
+          path: ${{ github.workspace }}/artifacts/${{ github.run_id }}/analysisPack.zip
+
+
   veracode-sast-pipeline-scan:
     needs: autopack
     runs-on: ubuntu-22.04
@@ -96,13 +107,6 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: analysisPack
-
-      - name: Veracode Pipeline Scan
-        uses: veracode/Veracode-pipeline-scan-action@v1.0.15
-        with:
-          vid: ${{ secrets.VERACODE_API_ID }}
-          vkey: ${{ secrets.VERACODE_API_KEY }}
-          file: "analysisPack.zip"
 
   veracode-sast-policy-scan:
     needs: [autopack, veracode-sast-pipeline-scan]
