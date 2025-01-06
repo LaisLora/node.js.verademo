@@ -42,7 +42,7 @@ jobs:
             ./veracode scan --type directory --source ${{ github.workspace }}/artifacts/${{ github.run_id }} \
             --output ${{ github.workspace }}/artifacts/${{ github.run_id }}/analysisPack.zip
           else
-            ./veracode package --type directory --source ${{ github.workspace }}/artifacts/${{ github.run_id }} \
+            ../veracode package --source . --type directory --output ${{ github.workspace }}/artifacts/${{ github.run_id }} \
             --output ${{ github.workspace }}/artifacts/${{ github.run_id }}/analysisPack.zip --trust
           fi
 
