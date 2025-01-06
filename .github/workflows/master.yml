@@ -5,7 +5,7 @@ on:
     branches:
       - dev
       - master
-      
+
   pull_request:
     branches:
       - master
@@ -27,11 +27,37 @@ jobs:
 
       - name: Install dependencies
         run: npm install
+
+      - name: Build Application
+        run: |
+          # Executa o build do projeto Node.js
+          npm run build || echo "Nenhuma etapa de build configurada, ignorando."
+
+          # Centraliza arquivos importantes em artifacts/${{ github.run_id }}
+          mkdir -p artifacts/${{ github.run_id }}
+
+          # Copia arquivos relevantes para o diretório de artefatos
+          find . -type f \( -name "*.js" -o -name "*.json" -o -name "*.zip" -o -name "*.ear" \) -exec cp {} artifacts/${{ github.run_id }}/ \;
+
+          echo "Conteúdo da pasta artifacts/${{ github.run_id }}:"
+          ls -l artifacts/${{ github.run_id }}/
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: compiled-binaries
+          path: artifacts/${{ github.run_id }}/
         
   autopack:
-    needs: build-and-scan
+    needs: [build-and-scan]
     runs-on: ubuntu-latest
     steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: compiled-binaries
+          path: artifacts/${{ github.run_id }}/
+
       - name: Baixar e Instalar CLI do Veracode
         run: |
           # Instala o Veracode CLI
@@ -46,12 +72,6 @@ jobs:
             --output ${{ github.workspace }}/artifacts/${{ github.run_id }}/analysisPack.zip --trust
           fi
 
-          find ${{ github.workspace }}/artifacts/${{ github.run_id }} -name "*.zip" |
-          while read filename; do unzip -o -d "dir=$(dirname "$filename")" "$filename"; done
-          rm -rf ${{ github.workspace }}/artifacts/${{ github.run_id }}/*.zip
-          zip analysisPack.zip -r ${{ github.workspace }}/artifacts/${{ github.run_id }}
-          mv analysisPack.zip ${{ github.workspace }}/artifacts/${{ github.run_id }}/analysisPack.zip
-          
       - name: Publicar Artefato
         uses: actions/upload-artifact@v3
         with:
