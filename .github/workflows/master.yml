@@ -1,15 +1,15 @@
-name: Veracode Scan
+name: API Veracode Scan
 
 on:
   push:
     branches:
       - dev
-      - QA
       - master
-      - main
+
+
 jobs:
   build-and-scan:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     env:
       BUILD_NUMBER: ${{ github.run_number }}
 
@@ -23,26 +23,49 @@ jobs:
           node-version: '16.x'
 
       - name: Install dependencies
-        run: npm install         
+        run: npm install
+
+      - name: Build Application
+        run: |
+          # Executa o build do projeto Node.js
+          npm run build || echo "Nenhuma etapa de build configurada, ignorando."
+          # Centraliza arquivos importantes em artifacts/${{ github.run_id }}
+          mkdir -p artifacts/${{ github.run_id }}
+          # Copia arquivos relevantes para o diretório de artefatos
+          find . -type f \( -name "*.js" -o -name "*.json" -o -name "*.zip" -o -name "*.ear" \) -exec cp {} artifacts/${{ github.run_id }}/ \;
+          echo "Conteúdo da pasta artifacts/${{ github.run_id }}:"
+          ls -l artifacts/${{ github.run_id }}/
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: compiled-binaries
+          path: artifacts/${{ github.run_id }}/
+        
   autopack:
-    needs: build-and-scan
-    runs-on: ubuntu-24.04
+    needs: [build-and-scan]
+    runs-on: ubuntu-latest
     steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: compiled-binaries
+          path: artifacts/${{ github.run_id }}/
+
       - name: Baixar e Instalar CLI do Veracode
         run: |
           # Instala o Veracode CLI
-          mkdir -p ${{ github.workspace }}/artifacts/${{ inputs.build-id }}
           curl -fsS https://tools.veracode.com/veracode-cli/install | sh
-            ./veracode package --source . --output ${{ github.workspace }}/artifacts/${{ inputs.build-id }} --trust
-            find ${{ github.workspace }}/artifacts/${{ inputs.build-id }} -name "*.zip" |
-            while read filename; do unzip -o -d "$(dirname "$filename")" "$filename"; done
-            rm -rf ${{ github.workspace }}/artifacts/${{ inputs.build-id }}/*.zip
-            zip analysisPack.zip -r ${{ github.workspace }}/artifacts/${{ inputs.build-id }}
-            mv analysisPack.zip ${{ github.workspace }}/artifacts/${{ inputs.build-id }}/analysisPack.zip
+          
+          # Realiza a separação de script por linguagem
+          if [ "${{ env.language }}" == "java" ]; then
+            ./veracode scan --type directory --source ${{ github.workspace }}/artifacts/${{ github.run_id }} \
+            --output ${{ github.workspace }}/artifacts/${{ github.run_id }}/analysisPack.zip
+          else
+            ./veracode package --source . --type directory --output ${{ github.workspace }}/artifacts/${{ github.run_id }} \
+            --output ${{ github.workspace }}/artifacts/${{ github.run_id }}/analysisPack.zip --trust
           fi
-
       - name: Publicar Artefato
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: analysisPack
           path: ${{ github.workspace }}/artifacts/${{ github.run_id }}/analysisPack.zip
@@ -52,34 +75,34 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Baixar Artefato
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v3
         with:
           name: analysisPack
-        
+          path: ${{ github.workspace }}/artifacts/${{ github.run_id }}/analysisPack.zip
 
       - name: Veracode Pipeline Scan
-        uses: veracode/Veracode-pipeline-scan-action@v1.0.18
+        uses: veracode/Veracode-pipeline-scan-action@v1.0.15
         with:
           vid: ${{ secrets.VERACODE_API_ID }}
           vkey: ${{ secrets.VERACODE_API_KEY }}
           file: artifacts/${{ github.run_id }}/analysisPack.zip
 
-#  veracode-sast-policy-scan:
-#    needs: autopack
-#    runs-on: ubuntu-22.04
-#    steps:
-#     - name: Baixar Artefato
-#        uses: actions/download-artifact@v3
-#        with:
-#          name: analysisPack
-#          path: artifacts/${{ github.run_id }}/analysisPack.zip
-#
-#      - name: Veracode SAST Policy Scan
-#        uses: veracode/veracode-uploadandscan-action@0.2.6
-#        with:
-#          appname: ${{ github.repository }}
-#          createprofile: true
-#          filepath: 'artifacts/${{ github.run_id }}/analysisPack.zip'
-#          vid: ${{ secrets.VERACODE_API_ID }}
-#          vkey: ${{ secrets.VERACODE_API_KEY }}
-#          version: "${{ github.run_id }}"
+  veracode-sast-policy-scan:
+    needs: autopack
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Baixar Artefato
+        uses: actions/download-artifact@v3
+        with:
+          name: analysisPack
+          path: artifacts/${{ github.run_id }}/analysisPack.zip
+
+      - name: Veracode SAST Policy Scan
+        uses: veracode/veracode-uploadandscan-action@0.2.6
+        with:
+          appname: ${{ github.repository }}
+          createprofile: true
+          filepath: 'artifacts/${{ github.run_id }}/analysisPack.zip'
+          vid: ${{ secrets.VERACODE_API_ID }}
+          vkey: ${{ secrets.VERACODE_API_KEY }}
+          version: "${{ github.run_id }}"
