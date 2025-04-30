@@ -37,7 +37,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: analysisPack
-          path: ${{ github.workspace }}/artifacts/${{ github.run_id }}/analysisPack.zip
+          path: ${{ github.workspace }}/artifacts/${{ inputs.build-id }}/analysisPack.zip
 
   veracode-sast-pipeline_scan:
     needs: build-and-package
@@ -54,7 +54,7 @@ jobs:
         with:
           vid: ${{ secrets.VERACODE_API_ID }}
           vkey: ${{ secrets.VERACODE_API_KEY }}
-          file: artifacts/${{ github.run_id }}/analysisPack.zip
+          file: artifacts/${{ inputs.build-id }}/analysisPack.zip
 
 #  veracode-sast-policy-scan:
 #    needs: autopack
@@ -64,14 +64,14 @@ jobs:
 #        uses: actions/download-artifact@v3
 #        with:
 #          name: analysisPack
-#          path: artifacts/${{ github.run_id }}/analysisPack.zip
+#          path: artifacts/${{ inputs.build-id }}/analysisPack.zip
 #
 #      - name: Veracode SAST Policy Scan
 #        uses: veracode/veracode-uploadandscan-action@0.2.6
 #        with:
 #          appname: ${{ github.repository }}
 #          createprofile: true
-#          filepath: 'artifacts/${{ github.run_id }}/analysisPack.zip'
+#          filepath: 'artifacts/${{ inputs.build-id }}/analysisPack.zip'
 #          vid: ${{ secrets.VERACODE_API_ID }}
 #          vkey: ${{ secrets.VERACODE_API_KEY }}
-#          version: "${{ github.run_id }}"
+#          version: "${{ inputs.build-id }}"
