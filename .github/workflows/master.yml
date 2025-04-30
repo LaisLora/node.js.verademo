@@ -31,23 +31,15 @@ jobs:
       - name: Baixar e Instalar CLI do Veracode
         run: |
           # Instala o Veracode CLI
+          mkdir -p ${{ github.workspace }}/artifacts/${{ inputs.build-id }}
           curl -fsS https://tools.veracode.com/veracode-cli/install | sh
-          
-          echo "Empacotando artefatos..."
-              ./veracode package --source . --type directory --output $(Build.ArtifactStagingDirectory)/artifacts/$(Build.BuildId) --trust
-
-              echo "Criando diretório para extração dos ZIPs..."
-              mkdir -p $(Build.ArtifactStagingDirectory)/artifacts/$(Build.BuildId)/analysisPack
-
-              echo "Extraindo todos os arquivos ZIP gerados..."
-              find $(Build.ArtifactStagingDirectory)/artifacts/$(Build.BuildId) -name "*.zip" | while read filename; do
-                unzip -o "$filename" -d $(Build.ArtifactStagingDirectory)/artifacts/$(Build.BuildId)/analysisPack
-              done
-
-              echo "Criando um único arquivo ZIP consolidado analysisPack.zip..."
-              zip -r $(Build.ArtifactStagingDirectory)/artifacts/$(Build.BuildId)/analysisPack.zip $(Build.ArtifactStagingDirectory)/artifacts/$(Build.BuildId)/analysisPack
-
-            displayName: 'Empacotar e Consolidar Artefatos'
+            ./veracode package --source . --output ${{ github.workspace }}/artifacts/${{ inputs.build-id }} --trust
+            find ${{ github.workspace }}/artifacts/${{ inputs.build-id }} -name "*.zip" |
+            while read filename; do unzip -o -d "$(dirname "$filename")" "$filename"; done
+            rm -rf ${{ github.workspace }}/artifacts/${{ inputs.build-id }}/*.zip
+            zip analysisPack.zip -r ${{ github.workspace }}/artifacts/${{ inputs.build-id }}
+            mv analysisPack.zip ${{ github.workspace }}/artifacts/${{ inputs.build-id }}/analysisPack.zip
+          fi
 
       - name: Publicar Artefato
         uses: actions/upload-artifact@v4
@@ -63,10 +55,10 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: analysisPack
-          path: ${{ github.workspace }}/artifacts/${{ github.run_id }}/analysisPack.zip
+        
 
       - name: Veracode Pipeline Scan
-        uses: veracode/Veracode-pipeline-scan-action@v1.0.15
+        uses: veracode/Veracode-pipeline-scan-action@v1.0.18
         with:
           vid: ${{ secrets.VERACODE_API_ID }}
           vkey: ${{ secrets.VERACODE_API_KEY }}
