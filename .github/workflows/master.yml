@@ -40,7 +40,7 @@ jobs:
          # ls -l artifacts/${{ github.run_id }}/
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: compiled-binaries
           path: artifacts/${{ github.run_id }}/
@@ -50,7 +50,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download artifact
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: compiled-binaries
           path: artifacts/${{ github.run_id }}/
@@ -77,7 +77,7 @@ jobs:
             displayName: 'Empacotar e Consolidar Artefatos'
 
       - name: Publicar Artefato
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: analysisPack
           path: ${{ github.workspace }}/artifacts/${{ github.run_id }}/analysisPack.zip
@@ -87,7 +87,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Baixar Artefato
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: analysisPack
           path: ${{ github.workspace }}/artifacts/${{ github.run_id }}/analysisPack.zip
@@ -99,22 +99,22 @@ jobs:
           vkey: ${{ secrets.VERACODE_API_KEY }}
           file: artifacts/${{ github.run_id }}/analysisPack.zip
 
-  veracode-sast-policy-scan:
-    needs: autopack
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Baixar Artefato
-        uses: actions/download-artifact@v3
-        with:
-          name: analysisPack
-          path: artifacts/${{ github.run_id }}/analysisPack.zip
-
-      - name: Veracode SAST Policy Scan
-        uses: veracode/veracode-uploadandscan-action@0.2.6
-        with:
-          appname: ${{ github.repository }}
-          createprofile: true
-          filepath: 'artifacts/${{ github.run_id }}/analysisPack.zip'
-          vid: ${{ secrets.VERACODE_API_ID }}
-          vkey: ${{ secrets.VERACODE_API_KEY }}
-          version: "${{ github.run_id }}"
+#  veracode-sast-policy-scan:
+#    needs: autopack
+#    runs-on: ubuntu-22.04
+#    steps:
+#     - name: Baixar Artefato
+#        uses: actions/download-artifact@v3
+#        with:
+#          name: analysisPack
+#          path: artifacts/${{ github.run_id }}/analysisPack.zip
+#
+#      - name: Veracode SAST Policy Scan
+#        uses: veracode/veracode-uploadandscan-action@0.2.6
+#        with:
+#          appname: ${{ github.repository }}
+#          createprofile: true
+#          filepath: 'artifacts/${{ github.run_id }}/analysisPack.zip'
+#          vid: ${{ secrets.VERACODE_API_ID }}
+#          vkey: ${{ secrets.VERACODE_API_KEY }}
+#          version: "${{ github.run_id }}"
