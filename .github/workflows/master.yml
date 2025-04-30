@@ -33,7 +33,6 @@ jobs:
             rm -rf ${{ github.workspace }}/artifacts/${{ inputs.build-id }}/*.zip
             zip analysisPack.zip -r ${{ github.workspace }}/artifacts/${{ inputs.build-id }}
             mv analysisPack.zip ${{ github.workspace }}/artifacts/${{ inputs.build-id }}/analysisPack.zip
-          fi
       - name: Publicar Artefato
         uses: actions/upload-artifact@v4
         with:
