@@ -54,7 +54,7 @@ jobs:
         with:
           vid: ${{ secrets.VERACODE_API_ID }}
           vkey: ${{ secrets.VERACODE_API_KEY }}
-          file: artifacts/${{ inputs.build-id }}/analysisPack.zip
+          file: analysisPack.zip
 
 #  veracode-sast-policy-scan:
 #    needs: autopack
