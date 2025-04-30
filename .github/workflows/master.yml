@@ -1,15 +1,12 @@
-name: API Veracode Scan
+name: Veracode Scan
 
 on:
   push:
     branches:
       - dev
+      - QA
       - master
-
-  pull_request:
-    branches:
-      - master
-
+      - main
 jobs:
   build-and-scan:
     runs-on: ubuntu-latest
@@ -28,19 +25,19 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Build Application
-        run: |
+      #- name: Build Application
+      #  run: |
           # Executa o build do projeto Node.js
-          npm run build || echo "Nenhuma etapa de build configurada, ignorando."
+         # npm run build || echo "Nenhuma etapa de build configurada, ignorando."
 
           # Centraliza arquivos importantes em artifacts/${{ github.run_id }}
-          mkdir -p artifacts/${{ github.run_id }}
+        #  mkdir -p artifacts/${{ github.run_id }}
 
           # Copia arquivos relevantes para o diretório de artefatos
-          find . -type f \( -name "*.js" -o -name "*.json" -o -name "*.zip" -o -name "*.ear" \) -exec cp {} artifacts/${{ github.run_id }}/ \;
+        #  find . -type f \( -name "*.js" -o -name "*.json" -o -name "*.zip" -o -name "*.ear" \) -exec cp {} artifacts/${{ github.run_id }}/ \;
 
-          echo "Conteúdo da pasta artifacts/${{ github.run_id }}:"
-          ls -l artifacts/${{ github.run_id }}/
+         # echo "Conteúdo da pasta artifacts/${{ github.run_id }}:"
+         # ls -l artifacts/${{ github.run_id }}/
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
@@ -63,14 +60,21 @@ jobs:
           # Instala o Veracode CLI
           curl -fsS https://tools.veracode.com/veracode-cli/install | sh
           
-          # Realiza a separação de script por linguagem
-          if [ "${{ env.language }}" == "java" ]; then
-            ./veracode scan --type directory --source ${{ github.workspace }}/artifacts/${{ github.run_id }} \
-            --output ${{ github.workspace }}/artifacts/${{ github.run_id }}/analysisPack.zip
-          else
-            ./veracode package --source . --type directory --output ${{ github.workspace }}/artifacts/${{ github.run_id }} \
-            --output ${{ github.workspace }}/artifacts/${{ github.run_id }}/analysisPack.zip --trust
-          fi
+          echo "Empacotando artefatos..."
+              ./veracode package --source . --type directory --output $(Build.ArtifactStagingDirectory)/artifacts/$(Build.BuildId) --trust
+
+              echo "Criando diretório para extração dos ZIPs..."
+              mkdir -p $(Build.ArtifactStagingDirectory)/artifacts/$(Build.BuildId)/analysisPack
+
+              echo "Extraindo todos os arquivos ZIP gerados..."
+              find $(Build.ArtifactStagingDirectory)/artifacts/$(Build.BuildId) -name "*.zip" | while read filename; do
+                unzip -o "$filename" -d $(Build.ArtifactStagingDirectory)/artifacts/$(Build.BuildId)/analysisPack
+              done
+
+              echo "Criando um único arquivo ZIP consolidado analysisPack.zip..."
+              zip -r $(Build.ArtifactStagingDirectory)/artifacts/$(Build.BuildId)/analysisPack.zip $(Build.ArtifactStagingDirectory)/artifacts/$(Build.BuildId)/analysisPack
+
+            displayName: 'Empacotar e Consolidar Artefatos'
 
       - name: Publicar Artefato
         uses: actions/upload-artifact@v3
