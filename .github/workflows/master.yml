@@ -201,7 +201,7 @@ jobs:
             fi
           fi
        
-          if [ "$ENVIRONMENT" == "main" ]; then
+          if [ "$ENVIRONMENT" == "master" ]; then
             echo "Executando SAST em ambiente de produção..."
             java -jar vosp-api-wrappers-java-24.7.14.0.jar \
               -vid $VID -vkey $VKEY \
@@ -223,6 +223,6 @@ jobs:
               -createprofile true \
               -deleteincompletescan 2 \
               -createsandbox true \
-              -sandboxname "$ENVIRONMENT" \
+              -sandboxname "QA" \
               -debug
           fi
