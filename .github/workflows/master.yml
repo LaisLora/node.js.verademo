@@ -7,20 +7,20 @@ on:
       - main
       - master
 
+
 env:
   PROJECT: ${{ github.event.repository.name }}
-  ENVIRONMENT: ${{ github.ref_name == 'dev' && 'qa' || 'prod' }}
+  NVIRONMENT: ${{ github.ref_name == 'develop' || 'main' }}
   BUILD_ID: ${{ github.run_id }}
 
 jobs:
   AutoPack:
     name: AutoPack
-    runs-on: ubuntu-24.04
+    runs-on:  ubuntu-24.04
 
     steps:
       - name: Checkout Código
         uses: actions/checkout@v4
-
       - name: Detectar Projeto Java-Maven
         id: check_maven
         run: |
@@ -34,6 +34,7 @@ jobs:
         if: ${{ steps.check_maven.outputs.java_maven == 'true' }}
         id: detect_java
         run: |
+          # Tenta extrair o valor de <maven.compiler.source> do pom.xml
           JAVA_VERSION=$(grep -oPm1 "(?<=<maven.compiler.source>)[^<]+" pom.xml || echo "11")
           if [[ "$JAVA_VERSION" == "11" ]]; then
             JAVA_VERSION=$(grep -oPm1 "(?<=<java.version>)[^<]+" pom.xml || echo "11")
@@ -56,24 +57,35 @@ jobs:
         if: ${{ steps.check_maven.outputs.java_maven == 'true' }}
         run: mvn clean package -DskipTests
 
-      - name: Instalar CLI do Veracode e AutoPack
+      - name: Instalar CLI do Veracode e Autopack-Veracode
         run: |
           mkdir -p ${{ github.workspace }}/artifacts/${{ env.BUILD_ID }}
-
+      
+          # Procura por arquivos WAR, JAR ou ZIP na pasta target
           WAR_FILE=$(find target/ -maxdepth 1 -name "*.war" | head -n 1)
           JAR_FILE=$(find target/ -maxdepth 1 -name "*.jar" | head -n 1)
-
+      
           if [ -f "$WAR_FILE" ]; then
-            cp "$WAR_FILE" artifacts/${{ env.BUILD_ID }}/application.war
+            echo "WAR encontrado: $WAR_FILE"
+            # Copia o WAR para o diretório de artefatos com um nome fixo
+            cp "$WAR_FILE" ${{ github.workspace }}/artifacts/${{ env.BUILD_ID }}/application.war
+      
           elif [ -f "$JAR_FILE" ]; then
-            cp "$JAR_FILE" artifacts/${{ env.BUILD_ID }}/application.jar
+            echo "JAR encontrado: $JAR_FILE"
+            cp "$JAR_FILE" ${{ github.workspace }}/artifacts/${{ genv.BUILD_ID }}/application.jar
+            # Compacta o JAR em um zip para padronizar, se necessário
+      
           else
+            echo "Nenhum WAR, JAR ou ZIP encontrado. Rodando Autopack..."
             curl -fsS https://tools.veracode.com/veracode-cli/install | sh
-            ./veracode package --source . --output artifacts/${{ env.BUILD_ID }} --trust
-            find artifacts/${{ env.BUILD_ID }} -name "*.zip" | while read f; do unzip -o -d "$(dirname "$f")" "$f"; done
-            rm -f artifacts/${{ env.BUILD_ID }}/*.zip
-            zip analysisPack.zip -r artifacts/${{ env.BUILD_ID }}
-            mv analysisPack.zip artifacts/${{ env.BUILD_ID }}/analysisPack.zip
+            ./veracode package --source . --output ${{ github.workspace }}/artifacts/${{ env.BUILD_ID }} --trust
+      
+            find ${{ github.workspace }}/artifacts/${{ env.BUILD_ID }} -name "*.zip" |
+            while read filename; do unzip -o -d "$(dirname "$filename")" "$filename"; done
+      
+            rm -rf ${{ github.workspace }}/artifacts/${{ env.BUILD_ID }}/*.zip
+            zip analysisPack.zip -r ${{ github.workspace }}/artifacts/${{ env.BUILD_ID }}
+            mv analysisPack.zip ${{ github.workspace }}/artifacts/${{ env.BUILD_ID }}/analysisPack.zip
           fi
 
       - name: Publicar Artefato para Análise
@@ -81,11 +93,13 @@ jobs:
         with:
           name: analysisPack
           path: |
-            artifacts/${{ env.BUILD_ID }}/analysisPack.zip
-            artifacts/${{ env.BUILD_ID }}/application.jar
-            artifacts/${{ env.BUILD_ID }}/application.war
+            ${{ github.workspace }}/artifacts/${{ env.BUILD_ID }}/analysisPack.zip
+            ${{ github.workspace }}/artifacts/${{ env.BUILD_ID }}/application.jar
+            ${{ github.workspace }}/artifacts/${{ env.BUILD_ID }}/application.war
+            
           retention-days: 1
 
+  # ─── Veracode SCA (com Workspace Map no próprio job) ──────────────────────────
   SCA:
     name: Veracode SCA
     runs-on: ubuntu-24.04
@@ -93,11 +107,13 @@ jobs:
       - uses: actions/checkout@v4
       - name: Executar Veracode SCA
         env:
-          SRCCLR_API_TOKEN: ${{ secrets.SCA_ORGANIZACIONAL }}
-          SRCCLR_WORKSPACE_SLUG: ${{ secrets.WORKSPACE_JAVA }}
+          SRCCLR_API_TOKEN: ${{ secrets.SCA }}
         run: |
           curl -sSL https://download.sourceclear.com/ci.sh \
             | bash -s -- scan --update-advisor --allow-dirty --uri-as-name --recursive
+
+
+  # ─── Veracode Pipeline Scan (mantém policy remap intacto) ────────────────────
 
   Scan:
     name: Scan
@@ -138,23 +154,35 @@ jobs:
             fi
           fi
 
+      # 4) Executa o Pipeline Scan usando o arquivo detectado
+      - name: Executar Veracode Pipeline Scan
+        uses: veracode/Veracode-pipeline-scan-action@v1.0.18
+        with:
+          vid: ${{ secrets.APIID_VERACODE }}
+          vkey: ${{ secrets.APIKEY_VERACODE }}
+          file: ${{ steps.detect_artifact.outputs.artifact_file }} --issue_details true
+          #fail_build: true
+          fail_build: false
+
   SAST:
-    name: Veracode SAST
     runs-on: ubuntu-24.04
     needs: AutoPack
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Baixar Artefato para Análise SAST
+        uses: actions/download-artifact@v4
         with:
           name: analysisPack
 
-      - name: Baixar Wrapper Veracode SAST
+      - name: Baixar Veracode SAST Wrapper
         run: |
           curl -O -L https://repo1.maven.org/maven2/com/veracode/vosp/api/wrappers/vosp-api-wrappers-java/24.7.14.0/vosp-api-wrappers-java-24.7.14.0.jar
+
 
       - name: Executar Veracode SAST
         env:
           VID: ${{ secrets.APIID_VERACODE }}
           VKEY: ${{ secrets.APIKEY_VERACODE }}
+          ENVIRONMENT: ${{ inputs.environment }}
         run: |
           # Verifica se existe um WAR
           WAR_FILE=$(find . -maxdepth 2 -name "*.war" | head -n 1)
@@ -172,28 +200,29 @@ jobs:
               ARTIFACT="analysisPack.zip"
             fi
           fi
-
-          if [ "${{ env.ENVIRONMENT }}" = "qa" ]; then
-            echo "Executando SAST com sandbox QA..."
+       
+          if [ "$ENVIRONMENT" == "main" ]; then
+            echo "Executando SAST em ambiente de produção..."
             java -jar vosp-api-wrappers-java-24.7.14.0.jar \
               -vid $VID -vkey $VKEY \
               -action uploadandscan \
-              -appname "${{ env.PROJECT }}" \
-              -version "${{ github.run_id }}" \
-              -filepath "$ARTIFACT" \
-              -createprofile true \
-              -deleteincompletescan 2 \
-              -createsandbox true \
-              -sandboxname "QA"
-          else
-            echo "Executando SAST sem sandbox..."
-            java -jar vosp-api-wrappers-java-24.7.14.0.jar \
-              -vid $VID -vkey $VKEY \
-              -action uploadandscan \
-              -appname "${{ env.PROJECT }}" \
+              -appname "${{ steps.project-name-sub.outputs.project_veracode_sub }}" \
               -version "${{ github.run_id }}" \
               -filepath "$ARTIFACT" \
               -createprofile true \
               -deleteincompletescan 2 \
               -createsandbox false
- 
+          else
+            echo "Executando SAST em ambiente de sandbox..."
+            java -jar vosp-api-wrappers-java-24.7.14.0.jar \
+              -vid $VID -vkey $VKEY \
+              -action uploadandscan \
+              -appname "${{ steps.project-name-sub.outputs.project_veracode_sub }}" \
+              -version "${{ github.run_id }}" \
+              -filepath "$ARTIFACT" \
+              -createprofile true \
+              -deleteincompletescan 2 \
+              -createsandbox true \
+              -sandboxname "$ENVIRONMENT" \
+              -debug
+          fi
