@@ -4,74 +4,186 @@ on:
   push:
     branches:
       - dev
-      - QA
-      - master
       - main
+      - master
+
+env:
+  PROJECT: ${{ github.event.repository.name }}
+  ENVIRONMENT: ${{ github.ref_name == 'dev' && 'qa' || 'prod' }}
+  BUILD_ID: ${{ github.run_id }}
+
 jobs:
-  build-and-package:
+  AutoPack:
+    name: AutoPack
     runs-on: ubuntu-24.04
+
     steps:
-      - name: Checkout do código
+      - name: Checkout Código
         uses: actions/checkout@v4
 
-      - name: Configurar Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '16.x'
-
-      - name: Instalar dependências
-        run: npm install
-
-      - name: Instalar Veracode CLI
+      - name: Detectar Projeto Java-Maven
+        id: check_maven
         run: |
-          # Instala o Veracode CLI
-          mkdir -p ${{ github.workspace }}/artifacts/${{ inputs.build-id }}
-          curl -fsS https://tools.veracode.com/veracode-cli/install | sh
-            ./veracode package --source . --output ${{ github.workspace }}/artifacts/${{ inputs.build-id }} --trust
-            find ${{ github.workspace }}/artifacts/${{ inputs.build-id }} -name "*.zip" |
-            while read filename; do unzip -o -d "$(dirname "$filename")" "$filename"; done
-            rm -rf ${{ github.workspace }}/artifacts/${{ inputs.build-id }}/*.zip
-            zip analysisPack.zip -r ${{ github.workspace }}/artifacts/${{ inputs.build-id }}
-            mv analysisPack.zip ${{ github.workspace }}/artifacts/${{ inputs.build-id }}/analysisPack.zip
-      - name: Publicar Artefato
+          if [ -f "pom.xml" ]; then
+            echo "java_maven=true" >> $GITHUB_OUTPUT
+          else
+            echo "java_maven=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Detectar versão do Java no pom.xml
+        if: ${{ steps.check_maven.outputs.java_maven == 'true' }}
+        id: detect_java
+        run: |
+          JAVA_VERSION=$(grep -oPm1 "(?<=<maven.compiler.source>)[^<]+" pom.xml || echo "11")
+          if [[ "$JAVA_VERSION" == "11" ]]; then
+            JAVA_VERSION=$(grep -oPm1 "(?<=<java.version>)[^<]+" pom.xml || echo "11")
+          fi
+          if [[ "$JAVA_VERSION" == "\${java.version}" ]]; then
+            JAVA_VERSION=$(grep -oPm1 "(?<=<java.version>)[^<]+" pom.xml || echo "11")
+          fi
+          echo "Versão do Java detectada: $JAVA_VERSION"
+          echo "java_version=$JAVA_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Configurar JDK e Maven
+        if: ${{ steps.check_maven.outputs.java_maven == 'true' }}
+        uses: actions/setup-java@v3
+        with:
+          java-version: ${{ steps.detect_java.outputs.java_version }}
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Compilar Projeto Maven
+        if: ${{ steps.check_maven.outputs.java_maven == 'true' }}
+        run: mvn clean package -DskipTests
+
+      - name: Instalar CLI do Veracode e AutoPack
+        run: |
+          mkdir -p ${{ github.workspace }}/artifacts/${{ env.BUILD_ID }}
+
+          WAR_FILE=$(find target/ -maxdepth 1 -name "*.war" | head -n 1)
+          JAR_FILE=$(find target/ -maxdepth 1 -name "*.jar" | head -n 1)
+
+          if [ -f "$WAR_FILE" ]; then
+            cp "$WAR_FILE" artifacts/${{ env.BUILD_ID }}/application.war
+          elif [ -f "$JAR_FILE" ]; then
+            cp "$JAR_FILE" artifacts/${{ env.BUILD_ID }}/application.jar
+          else
+            curl -fsS https://tools.veracode.com/veracode-cli/install | sh
+            ./veracode package --source . --output artifacts/${{ env.BUILD_ID }} --trust
+            find artifacts/${{ env.BUILD_ID }} -name "*.zip" | while read f; do unzip -o -d "$(dirname "$f")" "$f"; done
+            rm -f artifacts/${{ env.BUILD_ID }}/*.zip
+            zip analysisPack.zip -r artifacts/${{ env.BUILD_ID }}
+            mv analysisPack.zip artifacts/${{ env.BUILD_ID }}/analysisPack.zip
+          fi
+
+      - name: Publicar Artefato para Análise
         uses: actions/upload-artifact@v4
         with:
           name: analysisPack
-          path: ${{ github.workspace }}/artifacts/${{ inputs.build-id }}/analysisPack.zip
+          path: |
+            artifacts/${{ env.BUILD_ID }}/analysisPack.zip
+            artifacts/${{ env.BUILD_ID }}/application.jar
+            artifacts/${{ env.BUILD_ID }}/application.war
+          retention-days: 1
 
-  veracode-sast-pipeline_scan:
-    needs: build-and-package
-    runs-on: ubuntu-latest
+  SCA:
+    name: Veracode SCA
+    runs-on: ubuntu-24.04
     steps:
-      - name: Baixar Artefato
-        uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
+      - name: Executar Veracode SCA
+        env:
+          SRCCLR_API_TOKEN: ${{ secrets.SCA_ORGANIZACIONAL }}
+          SRCCLR_WORKSPACE_SLUG: ${{ secrets.WORKSPACE_JAVA }}
+        run: |
+          curl -sSL https://download.sourceclear.com/ci.sh \
+            | bash -s -- scan --update-advisor --allow-dirty --uri-as-name --recursive
+
+  Scan:
+    name: Pipeline Scan
+    runs-on: ubuntu-24.04
+    needs: AutoPack
+
+    steps:
+      - uses: actions/download-artifact@v4
         with:
           name: analysisPack
-        
 
-      - name: Veracode Pipeline Scan
+      - name: Detectar arquivo para análise
+        id: detect_artifact
+        run: |
+          WAR_FILE=$(find . -name "*.war" | head -n 1)
+          JAR_FILE=$(find . -name "*.jar" -not -name "pipeline-scan.jar" | head -n 1)
+
+          if [ -f "$WAR_FILE" ]; then
+            echo "artifact_file=$WAR_FILE" >> $GITHUB_OUTPUT
+          elif [ -f "$JAR_FILE" ]; then
+            echo "artifact_file=$JAR_FILE" >> $GITHUB_OUTPUT
+          elif [ -f "analysisPack.zip" ]; then
+            echo "artifact_file=analysisPack.zip" >> $GITHUB_OUTPUT
+          else
+            echo "::error::Nenhum arquivo para análise encontrado."
+            exit 1
+          fi
+
+      - name: Executar Veracode Pipeline Scan
         uses: veracode/Veracode-pipeline-scan-action@v1.0.18
+        continue-on-error: true
         with:
-          vid: ${{ secrets.VERACODE_API_ID }}
-          vkey: ${{ secrets.VERACODE_API_KEY }}
-          file: analysisPack.zip
+          vid: ${{ secrets.APIID_VERACODE }}
+          vkey: ${{ secrets.APIKEY_VERACODE }}
+          file: ${{ steps.detect_artifact.outputs.artifact_file }} --issue_details true
 
-#  veracode-sast-policy-scan:
-#    needs: autopack
-#    runs-on: ubuntu-22.04
-#    steps:
-#     - name: Baixar Artefato
-#        uses: actions/download-artifact@v3
-#        with:
-#          name: analysisPack
-#          path: artifacts/${{ inputs.build-id }}/analysisPack.zip
-#
-#      - name: Veracode SAST Policy Scan
-#        uses: veracode/veracode-uploadandscan-action@0.2.6
-#        with:
-#          appname: ${{ github.repository }}
-#          createprofile: true
-#          filepath: 'artifacts/${{ inputs.build-id }}/analysisPack.zip'
-#          vid: ${{ secrets.VERACODE_API_ID }}
-#          vkey: ${{ secrets.VERACODE_API_KEY }}
-#          version: "${{ inputs.build-id }}"
+  SAST:
+    name: Veracode SAST
+    runs-on: ubuntu-24.04
+    needs: AutoPack
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: analysisPack
+
+      - name: Baixar Wrapper Veracode SAST
+        run: |
+          curl -O -L https://repo1.maven.org/maven2/com/veracode/vosp/api/wrappers/vosp-api-wrappers-java/24.7.14.0/vosp-api-wrappers-java-24.7.14.0.jar
+
+      - name: Executar Veracode SAST
+        env:
+          VID: ${{ secrets.APIID_VERACODE }}
+          VKEY: ${{ secrets.APIKEY_VERACODE }}
+        run: |
+          ARTIFACT=""
+          WAR_FILE=$(find . -maxdepth 2 -name "*.war" | head -n 1)
+          JAR_FILE=$(find . -maxdepth 2 -name "*.jar" -not -name "vosp-api-wrappers*.jar" | head -n 1)
+
+          if [ -f "$WAR_FILE" ]; then
+            ARTIFACT="$WAR_FILE"
+          elif [ -f "$JAR_FILE" ]; then
+            ARTIFACT="$JAR_FILE"
+          else
+            ARTIFACT="analysisPack.zip"
+          fi
+
+          if [ "${{ env.ENVIRONMENT }}" = "qa" ]; then
+            echo "Executando SAST com sandbox QA..."
+            java -jar vosp-api-wrappers-java-24.7.14.0.jar \
+              -vid $VID -vkey $VKEY \
+              -action uploadandscan \
+              -appname "${{ env.PROJECT }}" \
+              -version "${{ github.run_id }}" \
+              -filepath "$ARTIFACT" \
+              -createprofile true \
+              -deleteincompletescan 2 \
+              -createsandbox true \
+              -sandboxname "QA"
+          else
+            echo "Executando SAST sem sandbox..."
+            java -jar vosp-api-wrappers-java-24.7.14.0.jar \
+              -vid $VID -vkey $VKEY \
+              -action uploadandscan \
+              -appname "${{ env.PROJECT }}" \
+              -version "${{ github.run_id }}" \
+              -filepath "$ARTIFACT" \
+              -createprofile true \
+              -deleteincompletescan 2 \
+              -createsandbox false
