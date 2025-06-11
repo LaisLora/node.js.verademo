@@ -206,7 +206,7 @@ jobs:
             java -jar vosp-api-wrappers-java-24.7.14.0.jar \
               -vid $VID -vkey $VKEY \
               -action uploadandscan \
-              -appname "${{ steps.project-name-sub.outputs.project_veracode_sub }}" \
+              -appname "${{ env.PROJECT }}" \
               -version "${{ github.run_id }}" \
               -filepath "$ARTIFACT" \
               -createprofile true \
@@ -217,7 +217,7 @@ jobs:
             java -jar vosp-api-wrappers-java-24.7.14.0.jar \
               -vid $VID -vkey $VKEY \
               -action uploadandscan \
-              -appname "${{ steps.project-name-sub.outputs.project_veracode_sub }}" \
+              -appname "${{ env.PROJECT }}" \
               -version "${{ github.run_id }}" \
               -filepath "$ARTIFACT" \
               -createprofile true \
