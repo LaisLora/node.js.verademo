@@ -10,7 +10,6 @@ on:
 
 env:
   PROJECT: ${{ github.event.repository.name }}
-  ENVIRONMENT: ${{ github.ref_name == 'master' && 'prod' || 'sandbox' }}
   BUILD_ID: ${{ github.run_id }}
 
 jobs:
