@@ -72,7 +72,7 @@ jobs:
       
           elif [ -f "$JAR_FILE" ]; then
             echo "JAR encontrado: $JAR_FILE"
-            cp "$JAR_FILE" ${{ github.workspace }}/artifacts/${{ genv.BUILD_ID }}/application.jar
+            cp "$JAR_FILE" ${{ github.workspace }}/artifacts/${{ env.BUILD_ID }}/application.jar
             # Compacta o JAR em um zip para padronizar, se necessário
       
           else
